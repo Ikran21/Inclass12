@@ -34,6 +34,85 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
     'items',
   );
 
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _qtyController = TextEditingController();
+
+  Future<void> _showItemForm({DocumentSnapshot? doc}) async {
+    String action = doc == null ? 'Add' : 'Edit';
+    if (doc != null) {
+      _nameController.text = doc['name'];
+      _qtyController.text = doc['quantity'].toString();
+    } else {
+      _nameController.clear();
+      _qtyController.clear();
+    }
+
+    await showModalBottomSheet(
+      isScrollControlled: true,
+      context: context,
+      builder:
+          (ctx) => Padding(
+            padding: EdgeInsets.only(
+              top: 20,
+              left: 20,
+              right: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '$action Item',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                TextField(
+                  controller: _nameController,
+                  decoration: InputDecoration(labelText: 'Item Name'),
+                ),
+                TextField(
+                  controller: _qtyController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(labelText: 'Quantity'),
+                ),
+                SizedBox(height: 20),
+                ElevatedButton(
+                  child: Text(action),
+                  onPressed: () async {
+                    String name = _nameController.text.trim();
+                    int? quantity = int.tryParse(_qtyController.text.trim());
+
+                    if (name.isEmpty || quantity == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Please enter valid values')),
+                      );
+                      return;
+                    }
+
+                    if (doc == null) {
+                      await _items.add({'name': name, 'quantity': quantity});
+                    } else {
+                      await _items.doc(doc.id).update({
+                        'name': name,
+                        'quantity': quantity,
+                      });
+                    }
+
+                    Navigator.of(ctx).pop();
+                  },
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  Future<void> _deleteItem(String id) async {
+    await _items.doc(id).delete();
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Item deleted')));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -41,18 +120,13 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
       body: StreamBuilder(
         stream: _items.snapshots(),
         builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
-          if (snapshot.hasError) {
+          if (snapshot.hasError)
             return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.connectionState == ConnectionState.waiting)
             return Center(child: CircularProgressIndicator());
-          }
 
           final docs = snapshot.data!.docs;
-
-          if (docs.isEmpty) {
-            return Center(child: Text('No items found.'));
-          }
+          if (docs.isEmpty) return Center(child: Text('No items found.'));
 
           return ListView.builder(
             itemCount: docs.length,
@@ -68,18 +142,11 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
                     children: [
                       IconButton(
                         icon: Icon(Icons.edit),
-                        onPressed: () {
-                          // TODO: Implement edit functionality
-                        },
+                        onPressed: () => _showItemForm(doc: item),
                       ),
                       IconButton(
                         icon: Icon(Icons.delete),
-                        onPressed: () async {
-                          await _items.doc(item.id).delete();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Item deleted')),
-                          );
-                        },
+                        onPressed: () => _deleteItem(item.id),
                       ),
                     ],
                   ),
@@ -90,9 +157,7 @@ class _InventoryHomePageState extends State<InventoryHomePage> {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // TODO: Implement add item functionality
-        },
+        onPressed: () => _showItemForm(),
         tooltip: 'Add Item',
         child: Icon(Icons.add),
       ),
